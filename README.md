@@ -92,7 +92,6 @@ Sub GenerateServiceData()
         brand = Trim(CStr(wsMarks.Cells(i, 2).Value))
         model = Trim(CStr(wsMarks.Cells(i, 3).Value))
         
-        ' Безопасное чтение столбцов O (15) и P (16)
         If iidValue <> "" Then
             If IsError(wsMarks.Cells(i, 15).Value) Then
                 dictPeriodO(iidValue) = ""
@@ -109,7 +108,6 @@ Sub GenerateServiceData()
         
         If iidValue <> "" And brand <> "" Then
             If Not dictMarks.exists(iidValue) Then
-                ' Безопасное чтение K, I, N
                 If IsError(wsMarks.Cells(i, 11).Value) Then serviceId = "" Else serviceId = Trim(CStr(wsMarks.Cells(i, 11).Value))
                 If IsError(wsMarks.Cells(i, 9).Value) Then driveType = "" Else driveType = Trim(CStr(wsMarks.Cells(i, 9).Value))
                 If IsError(wsMarks.Cells(i, 14).Value) Then modificationID = "" Else modificationID = Trim(CStr(wsMarks.Cells(i, 14).Value))
@@ -245,8 +243,10 @@ Sub GenerateServiceData()
                 wsDest.Cells(destRow, 7).Value = toNum
                 wsDest.Cells(destRow, 8).Value = k
                 wsDest.Cells(destRow, 9).Value = Date
-                wsDest.Cells(destRow, 10).Value = "" ' Стоимость (J)
-                wsDest.Cells(destRow, 11).Value = "" ' Розничная (K)
+                
+                ' ЗАГЛУШКА ДЛЯ ТЕСТА: подставляем тестовые цены
+                wsDest.Cells(destRow, 10).Value = 1500 ' Стоимость (J)
+                wsDest.Cells(destRow, 11).Value = 1200 ' Розничная (K)
                 
                 destRow = destRow + 1
             Next k
@@ -292,8 +292,8 @@ Sub GenerateServiceData()
             wsSDU.Cells(sduRow, 6).Value = ""
             
             ' Цены из листа Результат (J и K)
-            wsSDU.Cells(sduRow, 7).Value = wsDest.Cells(i, 10).Value ' Розничная (J)
-            wsSDU.Cells(sduRow, 8).Value = wsDest.Cells(i, 11).Value ' Со скидкой (K)
+            wsSDU.Cells(sduRow, 7).Value = wsDest.Cells(i, 10).Value ' Стоимость (J)
+            wsSDU.Cells(sduRow, 8).Value = wsDest.Cells(i, 11).Value ' Розничная (K)
             
             wsSDU.Cells(sduRow, 9).Value = Date
             sduRow = sduRow + 1
