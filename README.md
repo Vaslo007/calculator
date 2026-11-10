@@ -406,4 +406,87 @@ Sub GenerateServiceData()
     
     wsNAVPeriod.Cells(1, 1).Value = ChrW(1052) & ChrW(1086) & ChrW(1076) & ChrW(1080) & ChrW(1092) & ChrW(1080) & ChrW(1082) & ChrW(1072) & ChrW(1094) & ChrW(1080) & ChrW(1103) & " ID"
     wsNAVPeriod.Cells(1, 2).Value = ChrW(1052) & ChrW(1077) & ChrW(1078) & ChrW(1089) & ChrW(1077) & ChrW(1088) & ChrW(1074) & ChrW(1080) & ChrW(1089) & ChrW(1085) & ChrW(1099) & ChrW(1081) & " " & ChrW(1087) & ChrW(1088) & ChrW(1086) & ChrW(1073) & ChrW(1077) & ChrW(1075)
-    wsNAVPeriod.Cells(1, 3).Value = ChrW(1053) & ChrW(1077) & ChrW(1086) & ChrW(1073) & ChrW(1093) & ChrW(
+    wsNAVPeriod.Cells(1, 3).Value = ChrW(1053) & ChrW(1077) & ChrW(1086) & ChrW(1073) & ChrW(1093) & ChrW(1086) & ChrW(1076) & ChrW(1080) & ChrW(1084) & ChrW(1086) & ChrW(1089) & ChrW(1090) & ChrW(1100) & " " & ChrW(1053) & ChrW(1091) & ChrW(1083) & ChrW(1077) & ChrW(1074) & ChrW(1086) & ChrW(1075) & ChrW(1086) & " " & ChrW(1058) & ChrW(1054)
+    wsNAVPeriod.Cells(1, 4).Value = ChrW(1044) & ChrW(1072) & ChrW(1090) & ChrW(1072) & " " & ChrW(1053) & ChrW(1072) & ChrW(1095) & ChrW(1072) & ChrW(1083) & ChrW(1072) & " " & ChrW(1044) & ChrW(1077) & ChrW(1081) & ChrW(1089) & ChrW(1090) & ChrW(1074) & ChrW(1080) & ChrW(1103)
+
+    navPerRow = 2
+    Dim dictModWritten As Object
+    Set dictModWritten = CreateObject("Scripting.Dictionary")
+    
+    For i = 2 To lastRowMarks
+        modificationID = Trim(wsMarks.Cells(i, 14).Value)
+        
+        If modificationID <> "" Then
+            If Not dictModWritten.exists(modificationID) Then
+                dictModWritten.Add modificationID, True
+                
+                wsNAVPeriod.Cells(navPerRow, 1).Value = modificationID
+                wsNAVPeriod.Cells(navPerRow, 2).Value = Trim(wsMarks.Cells(i, 15).Value)
+                wsNAVPeriod.Cells(navPerRow, 3).Value = Trim(wsMarks.Cells(i, 16).Value)
+                wsNAVPeriod.Cells(navPerRow, 4).Value = Date
+                
+                navPerRow = navPerRow + 1
+            End If
+        End If
+    Next i
+
+    wsNAVPeriod.Columns("A:D").AutoFit
+    wsNAVPeriod.Rows.AutoFit
+    wsNAVPeriod.Cells(1, 1).EntireRow.Font.Bold = True
+
+    ' =========================================================
+    ' ---- 8. СОХРАНЕНИЕ 4 ВКЛАДОК В ОТДЕЛЬНЫЕ ФАЙЛЫ ----
+    ' =========================================================
+    Dim desktopPath As String
+    Dim folderPath As String
+    Dim savePath As String
+    Dim wbNew As Workbook
+    
+    desktopPath = CreateObject("WScript.Shell").SpecialFolders("Desktop")
+    folderPath = desktopPath & "\" & ChrW(1042) & ChrW(1099) & ChrW(1075) & ChrW(1088) & ChrW(1091) & ChrW(1079) & ChrW(1082) & ChrW(1072) & "_" & Format(Now, "ddmmyyyy_hhmmss")
+    
+    If Dir(folderPath, vbDirectory) = "" Then
+        MkDir folderPath
+    End If
+    
+    Application.ScreenUpdating = False
+    Application.DisplayAlerts = False
+    
+    wsSDU.Copy
+    Set wbNew = ActiveWorkbook
+    savePath = folderPath & "\" & ChrW(1057) & ChrW(1044) & ChrW(1059) & "_" & ChrW(1058) & ChrW(1054) & "_" & ChrW(1094) & ChrW(1077) & ChrW(1085) & ChrW(1099) & "_" & ChrW(1076) & ChrW(1083) & ChrW(1103) & "_" & ChrW(1079) & ChrW(1072) & ChrW(1075) & ChrW(1088) & ChrW(1091) & ChrW(1079) & ChrW(1082) & ChrW(1080) & ".xlsx"
+    wbNew.SaveAs Filename:=savePath, FileFormat:=xlOpenXMLWorkbook
+    wbNew.Close False
+    
+    wsSDUPeriod.Copy
+    Set wbNew = ActiveWorkbook
+    savePath = folderPath & "\" & ChrW(1057) & ChrW(1044) & ChrW(1059) & "_" & ChrW(1087) & ChrW(1077) & ChrW(1088) & ChrW(1077) & ChrW(1086) & ChrW(1076) & ChrW(1080) & ChrW(1085) & ChrW(1086) & ChrW(1089) & ChrW(1090) & ChrW(1100) & "_" & ChrW(1058) & ChrW(1054) & ".xlsx"
+    wbNew.SaveAs Filename:=savePath, FileFormat:=xlOpenXMLWorkbook
+    wbNew.Close False
+    
+    wsNAV.Copy
+    Set wbNew = ActiveWorkbook
+    savePath = folderPath & "\NAV_" & ChrW(1089) & ChrW(1087) & ChrW(1088) & ChrW(1072) & ChrW(1074) & ChrW(1086) & ChrW(1095) & ChrW(1085) & ChrW(1080) & ChrW(1082) & "_" & ChrW(1094) & ChrW(1077) & ChrW(1085) & ".xlsx"
+    wbNew.SaveAs Filename:=savePath, FileFormat:=xlOpenXMLWorkbook
+    wbNew.Close False
+    
+    wsNAVPeriod.Copy
+    Set wbNew = ActiveWorkbook
+    savePath = folderPath & "\NAV_" & ChrW(1057) & ChrW(1087) & ChrW(1088) & ChrW(1072) & ChrW(1074) & ChrW(1086) & ChrW(1095) & ChrW(1085) & ChrW(1080) & ChrW(1082) & "_" & ChrW(1087) & ChrW(1077) & ChrW(1088) & ChrW(1077) & ChrW(1086) & ChrW(1076) & ChrW(1080) & ChrW(1095) & ChrW(1085) & ChrW(1086) & ChrW(1089) & ChrW(1090) & ChrW(1080) & "_" & ChrW(1058) & ChrW(1054) & ".xlsx"
+    wbNew.SaveAs Filename:=savePath, FileFormat:=xlOpenXMLWorkbook
+    wbNew.Close False
+    
+    Application.ScreenUpdating = True
+    Application.DisplayAlerts = True
+
+    ' ---- Итоговое сообщение ----
+    MsgBox ChrW(1043) & ChrW(1086) & ChrW(1090) & ChrW(1086) & ChrW(1074) & ChrW(1086) & "!" & vbCrLf & _
+           ChrW(1060) & ChrW(1072) & ChrW(1081) & ChrW(1083) & ChrW(1099) & " " & ChrW(1089) & ChrW(1086) & ChrW(1093) & ChrW(1088) & ChrW(1072) & ChrW(1085) & ChrW(1077) & ChrW(1085) & ChrW(1099) & " " & ChrW(1074) & " " & folderPath, vbInformation
+    
+    Exit Sub
+    
+ErrorHandler:
+    Application.ScreenUpdating = True
+    Application.DisplayAlerts = True
+    MsgBox "Ошибка: " & Err.Description, vbCritical
+End Sub
