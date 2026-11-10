@@ -27,7 +27,6 @@ Sub GenerateServiceData()
     Dim serviceIDWithSuffix As String
     Dim driveType As String
     Dim maxTO As Long
-    Dim suffixCount As Long ' НОВАЯ ПЕРЕМЕННАЯ: количество суффиксов
     Dim suffix As Long
     Dim modificationID As String
     Dim destSheetName As String
@@ -176,13 +175,6 @@ Sub GenerateServiceData()
         model = data(3)
         modificationID = data(4)
         
-        ' --- НОВОЕ: Определяем количество суффиксов для марки ---
-        If brand = "Changan" Or brand = "VOYAH" Then
-            suffixCount = 11 ' Суффиксы от 0 до 10
-        Else
-            suffixCount = 6  ' Суффиксы от 0 до 5 (как было)
-        End If
-        
         If ladaIskraServiceIDs.exists(serviceId) Then
             periodStart = 0: periodEnd = 13
         ElseIf ladaVestaServiceIDs.exists(serviceId) Then
@@ -248,16 +240,23 @@ Sub GenerateServiceData()
             toNum = "ТО_" & Format(j, "0000")
             
             For k = periodStart To periodEnd
+                ' --- НОВОЕ: Логика суффиксов ---
                 If periodStart = 0 Then
                     If k = 0 Then
                         suffix = 0
                     Else
-                        ' --- НОВОЕ: используем suffixCount вместо жесткой 6 ---
-                        suffix = ((k - 1) Mod suffixCount) + 1
+                        If brand = "Changan" Or brand = "VOYAH" Then
+                            suffix = ((k - 1) Mod 10) + 1
+                        Else
+                            suffix = ((k - 1) Mod 6) + 1
+                        End If
                     End If
                 Else
-                    ' --- НОВОЕ: используем suffixCount вместо жесткой 6 ---
-                    suffix = ((k - 1) Mod suffixCount) + 1
+                    If brand = "Changan" Or brand = "VOYAH" Then
+                        suffix = ((k - 1) Mod 10) + 1
+                    Else
+                        suffix = ((k - 1) Mod 6) + 1
+                    End If
                 End If
                 
                 serviceIDWithSuffix = serviceId & "_" & suffix
@@ -272,7 +271,6 @@ Sub GenerateServiceData()
                 wsDest.Cells(destRow, 8).Value = k
                 wsDest.Cells(destRow, 9).Value = Date
                 
-                ' --- ПОИСК ЦЕН В СТАТИЧЕСКОМ РЕЗУЛЬТАТЕ ---
                 priceKey = CStr(modificationID) & "|" & toNum & "|" & CStr(k)
                 If dictPrices.exists(priceKey) Then
                     wsDest.Cells(destRow, 10).Value = dictPrices(priceKey)(0)
