@@ -8,6 +8,7 @@ Sub GenerateServiceData()
     Dim wsSDUPeriod As Worksheet
     Dim wsNAV As Worksheet
     Dim wsNAVPeriod As Worksheet
+    Dim wsCheck As Worksheet
     Dim lastRowMarks As Long
     Dim lastRowStatic As Long
     Dim i As Long, j As Long, k As Long
@@ -133,7 +134,16 @@ Sub GenerateServiceData()
         Exit Sub
     End If
     
-    ' ---- 2. Создаём ДИНАМИЧЕСКИЙ лист результата ----
+    ' ---- 2. УДАЛЯЕМ СТАРЫЕ ДИНАМИЧЕСКИЕ ЛИСТЫ И СОЗДАЁМ НОВЫЙ ----
+    Application.DisplayAlerts = False
+    ' Ищем и удаляем только те листы, которые начинаются с "Результат_"
+    For Each wsCheck In ThisWorkbook.Sheets
+        If Left(wsCheck.Name, 10) = "Результат_" Then
+            wsCheck.Delete
+        End If
+    Next wsCheck
+    Application.DisplayAlerts = True
+    
     destSheetName = "Результат_" & Format(Now, "ddmmyy_hhmmss")
     Set wsDest = ThisWorkbook.Sheets.Add(After:=ThisWorkbook.Sheets(ThisWorkbook.Sheets.Count))
     wsDest.Name = destSheetName
@@ -308,7 +318,6 @@ Sub GenerateServiceData()
             wsSDU.Cells(sduRow, 5).Value = ChrW(1052) & ChrW(1086) & ChrW(1089) & ChrW(1082) & ChrW(1074) & ChrW(1072)
             wsSDU.Cells(sduRow, 6).Value = ""
             
-            ' Цены из динамического листа (уже с подтянутыми ценами)
             wsSDU.Cells(sduRow, 7).Value = wsDest.Cells(i, 10).Value
             wsSDU.Cells(sduRow, 8).Value = wsDest.Cells(i, 11).Value
             
