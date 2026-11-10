@@ -2,16 +2,19 @@ Sub GenerateServiceData()
     On Error GoTo ErrorHandler
     
     Dim wsMarks As Worksheet
+    Dim wsStatic As Worksheet ' Ссылка на статический "Результат"
     Dim wsDest As Worksheet
     Dim wsSDU As Worksheet
     Dim wsSDUPeriod As Worksheet
     Dim wsNAV As Worksheet
     Dim wsNAVPeriod As Worksheet
     Dim lastRowMarks As Long
+    Dim lastRowStatic As Long
     Dim i As Long, j As Long, k As Long
     Dim dictMarks As Object
     Dim dictPeriodO As Object
     Dim dictPeriodP As Object
+    Dim dictPrices As Object ' Словарь для хранения цен
     Dim iidValue As String
     Dim brand As String
     Dim model As String
@@ -26,6 +29,7 @@ Sub GenerateServiceData()
     Dim suffix As Long
     Dim modificationID As String
     Dim destSheetName As String
+    Dim priceKey As String
     
     ' ---- Словарь: марка -> количество периодов ----
     Dim periodDict As Object
@@ -65,7 +69,24 @@ Sub GenerateServiceData()
     ladaVestaServiceIDs("LADA_Vesta_УНИВЕРСАЛ_1774_122 ЛС_ПЕРЕДНИЙ_MT") = True
     ladaVestaServiceIDs("LADA_Vesta_СЕДАН_1774_122 ЛС_ПЕРЕДНИЙ_MT") = True
     
-    ' ---- 1. Читаем исходный файл ----
+    ' ---- 0. Читаем СТАТИЧЕСКИЙ "Результат" для сбора цен ----
+    On Error Resume Next
+    Set wsStatic = ThisWorkbook.Sheets("Результат")
+    On Error GoTo 0
+    
+    Set dictPrices = CreateObject("Scripting.Dictionary")
+    
+    If Not wsStatic Is Nothing Then
+        lastRowStatic = wsStatic.Cells(wsStatic.Rows.Count, 1).End(xlUp).Row
+        For i = 2 To lastRowStatic
+            ' Формируем ключ: Модификация ID | Номер Услуги | Номер Периода
+            priceKey = CStr(wsStatic.Cells(i, 1).Value) & "|" & CStr(wsStatic.Cells(i, 7).Value) & "|" & CStr(wsStatic.Cells(i, 8).Value)
+            ' Запоминаем стоимость (J) и Розничную (K)
+            dictPrices(priceKey) = Array(wsStatic.Cells(i, 10).Value, wsStatic.Cells(i, 11).Value)
+        Next i
+    End If
+    
+    ' ---- 1. Читаем исходный файл марок ----
     On Error Resume Next
     Set wsMarks = Workbooks("Актуальные марки.xlsm").Sheets("Лист1")
     If wsMarks Is Nothing Then
@@ -93,17 +114,8 @@ Sub GenerateServiceData()
         model = Trim(CStr(wsMarks.Cells(i, 3).Value))
         
         If iidValue <> "" Then
-            If IsError(wsMarks.Cells(i, 15).Value) Then
-                dictPeriodO(iidValue) = ""
-            Else
-                dictPeriodO(iidValue) = Trim(CStr(wsMarks.Cells(i, 15).Value))
-            End If
-            
-            If IsError(wsMarks.Cells(i, 16).Value) Then
-                dictPeriodP(iidValue) = ""
-            Else
-                dictPeriodP(iidValue) = Trim(CStr(wsMarks.Cells(i, 16).Value))
-            End If
+            If IsError(wsMarks.Cells(i, 15).Value) Then dictPeriodO(iidValue) = "" Else dictPeriodO(iidValue) = Trim(CStr(wsMarks.Cells(i, 15).Value))
+            If IsError(wsMarks.Cells(i, 16).Value) Then dictPeriodP(iidValue) = "" Else dictPeriodP(iidValue) = Trim(CStr(wsMarks.Cells(i, 16).Value))
         End If
         
         If iidValue <> "" And brand <> "" Then
@@ -111,7 +123,6 @@ Sub GenerateServiceData()
                 If IsError(wsMarks.Cells(i, 11).Value) Then serviceId = "" Else serviceId = Trim(CStr(wsMarks.Cells(i, 11).Value))
                 If IsError(wsMarks.Cells(i, 9).Value) Then driveType = "" Else driveType = Trim(CStr(wsMarks.Cells(i, 9).Value))
                 If IsError(wsMarks.Cells(i, 14).Value) Then modificationID = "" Else modificationID = Trim(CStr(wsMarks.Cells(i, 14).Value))
-                
                 dictMarks.Add iidValue, Array(brand, serviceId, driveType, model, modificationID)
             End If
         End If
@@ -244,9 +255,15 @@ Sub GenerateServiceData()
                 wsDest.Cells(destRow, 8).Value = k
                 wsDest.Cells(destRow, 9).Value = Date
                 
-                ' ЗАГЛУШКА ДЛЯ ТЕСТА: подставляем тестовые цены
-                wsDest.Cells(destRow, 10).Value = 1500 ' Стоимость (J)
-                wsDest.Cells(destRow, 11).Value = 1200 ' Розничная (K)
+                ' --- ПОИСК ЦЕН В СТАТИЧЕСКОМ РЕЗУЛЬТАТЕ ---
+                priceKey = CStr(modificationID) & "|" & toNum & "|" & CStr(k)
+                If dictPrices.exists(priceKey) Then
+                    wsDest.Cells(destRow, 10).Value = dictPrices(priceKey)(0) ' Стоимость из J
+                    wsDest.Cells(destRow, 11).Value = dictPrices(priceKey)(1) ' Розничная из K
+                Else
+                    wsDest.Cells(destRow, 10).Value = ""
+                    wsDest.Cells(destRow, 11).Value = ""
+                End If
                 
                 destRow = destRow + 1
             Next k
@@ -291,9 +308,9 @@ Sub GenerateServiceData()
             wsSDU.Cells(sduRow, 5).Value = ChrW(1052) & ChrW(1086) & ChrW(1089) & ChrW(1082) & ChrW(1074) & ChrW(1072)
             wsSDU.Cells(sduRow, 6).Value = ""
             
-            ' Цены из листа Результат (J и K)
-            wsSDU.Cells(sduRow, 7).Value = wsDest.Cells(i, 10).Value ' Стоимость (J)
-            wsSDU.Cells(sduRow, 8).Value = wsDest.Cells(i, 11).Value ' Розничная (K)
+            ' Цены из динамического листа (уже с подтянутыми ценами)
+            wsSDU.Cells(sduRow, 7).Value = wsDest.Cells(i, 10).Value
+            wsSDU.Cells(sduRow, 8).Value = wsDest.Cells(i, 11).Value
             
             wsSDU.Cells(sduRow, 9).Value = Date
             sduRow = sduRow + 1
@@ -382,7 +399,6 @@ Sub GenerateServiceData()
             wsNAV.Cells(navRow, 2).Value = wsDest.Cells(i, 7).Value
             wsNAV.Cells(navRow, 3).Value = wsDest.Cells(i, 8).Value
             wsNAV.Cells(navRow, 4).Value = Date
-            ' Берем стоимость из J (10) листа Результат
             wsNAV.Cells(navRow, 5).Value = wsDest.Cells(i, 10).Value
             navRow = navRow + 1
         End If
