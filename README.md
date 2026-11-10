@@ -48,7 +48,7 @@ Sub GenerateServiceData()
     periodDict("OMODA") = 21
     periodDict("TENET") = 21
     periodDict("Changan") = 21
-    periodDict("VOYAH") = 20
+    periodDict("VOYAH") = 21 ' Изменено на 21 (от 0 до 20)
     
     ' ---- Модели LADA с периодом с 0 ----
     Dim nivaModels As Object
@@ -213,7 +213,8 @@ Sub GenerateServiceData()
                 periodStart = 1: periodEnd = 13
             End If
         ElseIf brand = "VOYAH" Then
-            periodStart = 1: periodEnd = 20
+            ' --- ИСПРАВЛЕНО: теперь начинаем с 0 ---
+            periodStart = 0: periodEnd = 20 
         Else
             Select Case model
                 Case "4x4", "Niva Legend", "Niva Sport"
@@ -240,7 +241,7 @@ Sub GenerateServiceData()
             toNum = "ТО_" & Format(j, "0000")
             
             For k = periodStart To periodEnd
-                ' --- НОВОЕ: Логика суффиксов ---
+                ' --- Логика суффиксов ---
                 If periodStart = 0 Then
                     If k = 0 Then
                         suffix = 0
