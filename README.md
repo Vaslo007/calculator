@@ -1,6 +1,409 @@
-    ' ---- 2. Создаём ДИНАМИЧЕСКИЙ лист результата (с датой и временем) ----
-    Dim destSheetName As String
-    destSheetName = "Результат_" & Format(Now, "ddmmyy_hhmmss")
+Sub GenerateServiceData()
+    On Error GoTo ErrorHandler
     
+    Dim wsMarks As Worksheet
+    Dim wsDest As Worksheet
+    Dim wsSDU As Worksheet
+    Dim wsSDUPeriod As Worksheet
+    Dim wsNAV As Worksheet
+    Dim wsNAVPeriod As Worksheet
+    Dim lastRowMarks As Long
+    Dim i As Long, j As Long, k As Long
+    Dim dictMarks As Object
+    Dim dictPeriodO As Object
+    Dim dictPeriodP As Object
+    Dim iidValue As String
+    Dim brand As String
+    Dim model As String
+    Dim periodCount As Long
+    Dim periodStart As Long
+    Dim periodEnd As Long
+    Dim destRow As Long, sduRow As Long, sduPerRow As Long, navRow As Long, navPerRow As Long
+    Dim serviceId As String
+    Dim serviceIDWithSuffix As String
+    Dim driveType As String
+    Dim maxTO As Long
+    Dim suffix As Long
+    Dim modificationID As String
+    Dim destSheetName As String
+    
+    ' ---- Словарь: марка -> количество периодов ----
+    Dim periodDict As Object
+    Set periodDict = CreateObject("Scripting.Dictionary")
+    periodDict("BELGEE") = 21
+    periodDict("CHERY") = 21
+    periodDict("CheryExeed") = 21
+    periodDict("EXEED") = 21
+    periodDict("GEELY") = 21
+    periodDict("GWM TANK") = 13
+    periodDict("HAVAL") = 13
+    periodDict("Jetour") = 21
+    periodDict("KNEWSTAR") = 21
+    periodDict("LADA") = 13
+    periodDict("OMODA") = 21
+    periodDict("TENET") = 21
+    periodDict("Changan") = 21
+    periodDict("VOYAH") = 20
+    
+    ' ---- Модели LADA с периодом с 0 ----
+    Dim nivaModels As Object
+    Set nivaModels = CreateObject("Scripting.Dictionary")
+    nivaModels("4x4") = True
+    nivaModels("Niva Travel") = True
+    nivaModels("Niva Legend") = True
+    nivaModels("Niva Sport") = True
+    
+    ' ---- Service_ID для LADA ISKRA с периодом 0..13 (14 периодов) ----
+    Dim ladaIskraServiceIDs As Object
+    Set ladaIskraServiceIDs = CreateObject("Scripting.Dictionary")
+    ladaIskraServiceIDs("LADA_ISKRA_СЕДАН_1596_106 ЛС_ПЕРЕДНИЙ_MT") = True
+    ladaIskraServiceIDs("LADA_ISKRA_УНИВЕРСАЛ_1596_106 ЛС_ПЕРЕДНИЙ_MT") = True
+    
+    ' ---- Service_ID для LADA Vesta с периодом 0..13 (14 периодов) ----
+    Dim ladaVestaServiceIDs As Object
+    Set ladaVestaServiceIDs = CreateObject("Scripting.Dictionary")
+    ladaVestaServiceIDs("LADA_Vesta_УНИВЕРСАЛ_1774_122 ЛС_ПЕРЕДНИЙ_MT") = True
+    ladaVestaServiceIDs("LADA_Vesta_СЕДАН_1774_122 ЛС_ПЕРЕДНИЙ_MT") = True
+    
+    ' ---- 1. Читаем исходный файл ----
+    On Error Resume Next
+    Set wsMarks = Workbooks("Актуальные марки.xlsm").Sheets("Лист1")
+    If wsMarks Is Nothing Then
+        Set wsMarks = Workbooks("Актуальные марки.xlsm").Sheets("Sheet1")
+    End If
+    If wsMarks Is Nothing Then
+        Set wsMarks = Workbooks("Актуальные марки.xlsm").Sheets(1)
+    End If
+    On Error GoTo 0
+    
+    If wsMarks Is Nothing Then
+        MsgBox "Файл 'Актуальные марки.xlsm' не найден или лист отсутствует!", vbCritical
+        Exit Sub
+    End If
+    
+    lastRowMarks = wsMarks.Cells(wsMarks.Rows.Count, 1).End(xlUp).Row
+    
+    Set dictPeriodO = CreateObject("Scripting.Dictionary")
+    Set dictPeriodP = CreateObject("Scripting.Dictionary")
+    Set dictMarks = CreateObject("Scripting.Dictionary")
+    
+    For i = 2 To lastRowMarks
+        iidValue = Trim(CStr(wsMarks.Cells(i, 1).Value))
+        brand = Trim(CStr(wsMarks.Cells(i, 2).Value))
+        model = Trim(CStr(wsMarks.Cells(i, 3).Value))
+        
+        ' Безопасное чтение столбцов O (15) и P (16)
+        If iidValue <> "" Then
+            If IsError(wsMarks.Cells(i, 15).Value) Then
+                dictPeriodO(iidValue) = ""
+            Else
+                dictPeriodO(iidValue) = Trim(CStr(wsMarks.Cells(i, 15).Value))
+            End If
+            
+            If IsError(wsMarks.Cells(i, 16).Value) Then
+                dictPeriodP(iidValue) = ""
+            Else
+                dictPeriodP(iidValue) = Trim(CStr(wsMarks.Cells(i, 16).Value))
+            End If
+        End If
+        
+        If iidValue <> "" And brand <> "" Then
+            If Not dictMarks.exists(iidValue) Then
+                ' Безопасное чтение K, I, N
+                If IsError(wsMarks.Cells(i, 11).Value) Then serviceId = "" Else serviceId = Trim(CStr(wsMarks.Cells(i, 11).Value))
+                If IsError(wsMarks.Cells(i, 9).Value) Then driveType = "" Else driveType = Trim(CStr(wsMarks.Cells(i, 9).Value))
+                If IsError(wsMarks.Cells(i, 14).Value) Then modificationID = "" Else modificationID = Trim(CStr(wsMarks.Cells(i, 14).Value))
+                
+                dictMarks.Add iidValue, Array(brand, serviceId, driveType, model, modificationID)
+            End If
+        End If
+    Next i
+    
+    If dictMarks.Count = 0 Then
+        MsgBox "Не найдено данных на исходном листе!", vbCritical
+        Exit Sub
+    End If
+    
+    ' ---- 2. Создаём ДИНАМИЧЕСКИЙ лист результата ----
+    destSheetName = "Результат_" & Format(Now, "ddmmyy_hhmmss")
     Set wsDest = ThisWorkbook.Sheets.Add(After:=ThisWorkbook.Sheets(ThisWorkbook.Sheets.Count))
     wsDest.Name = destSheetName
+    
+    ' ---- Заголовки (Результат) ----
+    wsDest.Cells(1, 1).Value = ChrW(1052) & ChrW(1086) & ChrW(1076) & ChrW(1080) & ChrW(1092) & ChrW(1080) & ChrW(1082) & ChrW(1072) & ChrW(1094) & ChrW(1080) & ChrW(1103) & " ID"
+    wsDest.Cells(1, 2).Value = ChrW(1048) & ChrW(1085) & ChrW(1090) & ChrW(1077) & ChrW(1075) & ChrW(1088) & ChrW(1072) & ChrW(1094) & ChrW(1080) & ChrW(1086) & ChrW(1085) & ChrW(1085) & ChrW(1099) & ChrW(1081) & " ID"
+    wsDest.Cells(1, 3).Value = "service_id"
+    wsDest.Cells(1, 4).Value = ChrW(1052) & ChrW(1072) & ChrW(1088) & ChrW(1082) & ChrW(1072)
+    wsDest.Cells(1, 5).Value = ChrW(1052) & ChrW(1086) & ChrW(1076) & ChrW(1077) & ChrW(1083) & ChrW(1100)
+    wsDest.Cells(1, 6).Value = ChrW(1058) & ChrW(1080) & ChrW(1087) & " " & ChrW(1087) & ChrW(1088) & ChrW(1080) & ChrW(1074) & ChrW(1086) & ChrW(1076) & ChrW(1072)
+    wsDest.Cells(1, 7).Value = ChrW(1053) & ChrW(1086) & ChrW(1084) & ChrW(1077) & ChrW(1088) & " " & ChrW(1059) & ChrW(1089) & ChrW(1083) & ChrW(1091) & ChrW(1075) & ChrW(1080)
+    wsDest.Cells(1, 8).Value = ChrW(1053) & ChrW(1086) & ChrW(1084) & ChrW(1077) & ChrW(1088) & " " & ChrW(1055) & ChrW(1077) & ChrW(1088) & ChrW(1080) & ChrW(1086) & ChrW(1076) & ChrW(1072)
+    wsDest.Cells(1, 9).Value = ChrW(1044) & ChrW(1072) & ChrW(1090) & ChrW(1072) & " " & ChrW(1044) & ChrW(1077) & ChrW(1081) & ChrW(1089) & ChrW(1090) & ChrW(1074) & ChrW(1080) & ChrW(1103)
+    wsDest.Cells(1, 10).Value = ChrW(1057) & ChrW(1090) & ChrW(1086) & ChrW(1080) & ChrW(1084) & ChrW(1086) & ChrW(1089) & ChrW(1090) & ChrW(1100) & " " & ChrW(1054) & ChrW(1073) & ChrW(1089) & ChrW(1083) & ChrW(1091) & ChrW(1078) & ChrW(1080) & ChrW(1074) & ChrW(1072) & ChrW(1085) & ChrW(1080) & ChrW(1103) & "," & " " & ChrW(1088) & ChrW(1091) & ChrW(1073)
+    wsDest.Cells(1, 11).Value = ChrW(1056) & ChrW(1086) & ChrW(1079) & ChrW(1085) & ChrW(1080) & ChrW(1095) & ChrW(1085) & ChrW(1072) & ChrW(1103) & " " & ChrW(1089) & ChrW(1090) & ChrW(1086) & ChrW(1080) & ChrW(1084) & ChrW(1086) & ChrW(1089) & ChrW(1090) & ChrW(1100) & " " & ChrW(1086) & ChrW(1073) & ChrW(1089) & ChrW(1083) & ChrW(1091) & ChrW(1078) & ChrW(1080) & ChrW(1074) & ChrW(1072) & ChrW(1085) & ChrW(1080) & ChrW(1103) & "," & " " & ChrW(1088) & ChrW(1091) & ChrW(1073)
+    
+    ' ---- 3. Генерация строк ----
+    destRow = 2
+    Dim iidArr As Variant
+    iidArr = dictMarks.Keys
+    maxTO = 6
+    
+    For i = 0 To dictMarks.Count - 1
+        iidValue = iidArr(i)
+        Dim data As Variant
+        data = dictMarks(iidValue)
+        
+        brand = data(0)
+        serviceId = data(1)
+        driveType = data(2)
+        model = data(3)
+        modificationID = data(4)
+        
+        If ladaIskraServiceIDs.exists(serviceId) Then
+            periodStart = 0: periodEnd = 13
+        ElseIf ladaVestaServiceIDs.exists(serviceId) Then
+            periodStart = 0: periodEnd = 13
+        ElseIf brand = "SOLLERS" Then
+            If InStr(1, serviceId, "ST8", vbTextCompare) > 0 Then
+                periodStart = 1: periodEnd = 20
+            Else
+                Select Case True
+                    Case InStr(1, serviceId, "Atlant", vbTextCompare) > 0
+                        periodStart = 0: periodEnd = 10
+                    Case InStr(1, serviceId, "SF4", vbTextCompare) > 0
+                        periodStart = 0: periodEnd = 10
+                    Case InStr(1, serviceId, "SF5", vbTextCompare) > 0
+                        periodStart = 0: periodEnd = 10
+                    Case InStr(1, serviceId, "SF1", vbTextCompare) > 0
+                        periodStart = 0: periodEnd = 20
+                    Case InStr(1, serviceId, "SP7", vbTextCompare) > 0
+                        periodStart = 0: periodEnd = 20
+                    Case InStr(1, serviceId, "ST9", vbTextCompare) > 0
+                        periodStart = 0: periodEnd = 20
+                    Case InStr(1, serviceId, "ST6", vbTextCompare) > 0
+                        periodStart = 0: periodEnd = 13
+                    Case InStr(1, serviceId, "Argo", vbTextCompare) > 0
+                        periodStart = 0: periodEnd = 13
+                    Case Else
+                        periodStart = 0: periodEnd = 20
+                End Select
+            End If
+        ElseIf brand = "HAVAL" Then
+            periodStart = 1: periodEnd = 13
+        ElseIf brand = "ГАЗ" Or brand = "НАЗ" Then
+            If InStr(1, serviceId, "ДИЗЕЛЬ", vbTextCompare) > 0 Then
+                periodStart = 1: periodEnd = 10
+            Else
+                periodStart = 1: periodEnd = 13
+            End If
+        ElseIf brand = "VOYAH" Then
+            periodStart = 1: periodEnd = 20
+        Else
+            Select Case model
+                Case "4x4", "Niva Legend", "Niva Sport"
+                    periodStart = 0: periodEnd = 20
+                Case "Niva Travel"
+                    periodStart = 0: periodEnd = 13
+                Case Else
+                    Select Case brand
+                        Case "GWM TANK", "LADA"
+                            periodStart = 1: periodEnd = 13
+                        Case Else
+                            If periodDict.exists(brand) Then
+                                periodCount = periodDict(brand)
+                            Else
+                                periodCount = 21
+                            End If
+                            periodStart = 0: periodEnd = periodCount - 1
+                    End Select
+            End Select
+        End If
+        
+        For j = 1 To maxTO
+            Dim toNum As String
+            toNum = "ТО_" & Format(j, "0000")
+            
+            For k = periodStart To periodEnd
+                If periodStart = 0 Then
+                    If k = 0 Then
+                        suffix = 0
+                    Else
+                        suffix = ((k - 1) Mod 6) + 1
+                    End If
+                Else
+                    suffix = ((k - 1) Mod 6) + 1
+                End If
+                
+                serviceIDWithSuffix = serviceId & "_" & suffix
+                
+                wsDest.Cells(destRow, 1).Value = modificationID
+                wsDest.Cells(destRow, 2).Value = iidValue
+                wsDest.Cells(destRow, 3).Value = serviceIDWithSuffix
+                wsDest.Cells(destRow, 4).Value = brand
+                wsDest.Cells(destRow, 5).Value = model
+                wsDest.Cells(destRow, 6).Value = driveType
+                wsDest.Cells(destRow, 7).Value = toNum
+                wsDest.Cells(destRow, 8).Value = k
+                wsDest.Cells(destRow, 9).Value = Date
+                wsDest.Cells(destRow, 10).Value = "" ' Стоимость (J)
+                wsDest.Cells(destRow, 11).Value = "" ' Розничная (K)
+                
+                destRow = destRow + 1
+            Next k
+        Next j
+    Next i
+    
+    wsDest.Columns("A:K").AutoFit
+    wsDest.Rows.AutoFit
+    wsDest.Cells(1, 1).EntireRow.Font.Bold = True
+    
+    ' =========================================================
+    ' ---- 4. ВКЛАДКА СДУ_ТО_цены_для_загрузки ----
+    ' =========================================================
+    On Error Resume Next
+    Application.DisplayAlerts = False
+    ThisWorkbook.Sheets("СДУ_ТО_цены_для_загрузки").Delete
+    Application.DisplayAlerts = True
+    On Error GoTo ErrorHandler
+    
+    Set wsSDU = ThisWorkbook.Sheets.Add(After:=wsDest)
+    wsSDU.Name = "СДУ_ТО_цены_для_загрузки"
+    
+    wsSDU.Cells(1, 1).Value = ChrW(1053) & ChrW(1086) & ChrW(1084) & ChrW(1077) & ChrW(1088) & " " & ChrW(1084) & ChrW(1086) & ChrW(1076) & ChrW(1080) & ChrW(1092) & ChrW(1080) & ChrW(1082) & ChrW(1072) & ChrW(1094) & ChrW(1080) & ChrW(1088)
+    wsSDU.Cells(1, 2).Value = ChrW(1058) & ChrW(1080) & ChrW(1087) & " " & ChrW(1086) & ChrW(1073) & ChrW(1089) & ChrW(1083) & ChrW(1091) & ChrW(1078) & ChrW(1080) & ChrW(1074) & ChrW(1072) & ChrW(1085) & ChrW(1080) & ChrW(1103)
+    wsSDU.Cells(1, 3).Value = ChrW(1053) & ChrW(1086) & ChrW(1084) & ChrW(1077) & ChrW(1088) & " " & ChrW(1087) & ChrW(1077) & ChrW(1088) & ChrW(1080) & ChrW(1086) & ChrW(1076) & ChrW(1072)
+    wsSDU.Cells(1, 4).Value = ChrW(1054) & ChrW(1087) & ChrW(1080) & ChrW(1089) & ChrW(1072) & ChrW(1085) & ChrW(1080) & ChrW(1077) & " " & ChrW(1086) & ChrW(1073) & ChrW(1089) & ChrW(1083) & ChrW(1091) & ChrW(1078) & ChrW(1080) & ChrW(1074) & ChrW(1072) & ChrW(1085) & ChrW(1080) & ChrW(1103)
+    wsSDU.Cells(1, 5).Value = ChrW(1056) & ChrW(1077) & ChrW(1075) & ChrW(1080) & ChrW(1086) & ChrW(1085) & " " & ChrW(1086) & ChrW(1073) & ChrW(1089) & ChrW(1083) & ChrW(1091) & ChrW(1078) & ChrW(1080) & ChrW(1074) & ChrW(1072) & ChrW(1085) & ChrW(1080) & ChrW(1103)
+    wsSDU.Cells(1, 6).Value = ChrW(1055) & ChrW(1086) & ChrW(1089) & ChrW(1090) & ChrW(1072) & ChrW(1074) & ChrW(1097) & ChrW(1080) & ChrW(1082)
+    wsSDU.Cells(1, 7).Value = ChrW(1056) & ChrW(1086) & ChrW(1079) & ChrW(1085) & ChrW(1080) & ChrW(1095) & ChrW(1085) & ChrW(1072) & ChrW(1103) & " " & ChrW(1089) & ChrW(1090) & ChrW(1086) & ChrW(1080) & ChrW(1084) & ChrW(1086) & ChrW(1089) & ChrW(1090) & ChrW(1100)
+    wsSDU.Cells(1, 8).Value = ChrW(1057) & ChrW(1090) & ChrW(1086) & ChrW(1080) & ChrW(1084) & ChrW(1086) & ChrW(1089) & ChrW(1090) & ChrW(1100) & " " & ChrW(1089) & ChrW(1086) & " " & ChrW(1089) & ChrW(1082) & ChrW(1080) & ChrW(1076) & ChrW(1082) & ChrW(1086) & ChrW(1081)
+    wsSDU.Cells(1, 9).Value = ChrW(1044) & ChrW(1072) & ChrW(1090) & ChrW(1072) & " " & ChrW(1085) & ChrW(1072) & ChrW(1095) & ChrW(1072) & ChrW(1083) & ChrW(1072) & " " & ChrW(1076) & ChrW(1077) & ChrW(1081) & ChrW(1089) & ChrW(1090) & ChrW(1074) & ChrW(1080) & ChrW(1103)
+    
+    sduRow = 2
+    lastRowMarks = wsDest.Cells(wsDest.Rows.Count, 1).End(xlUp).Row
+    
+    For i = 2 To lastRowMarks
+        If wsDest.Cells(i, 7).Value = "ТО_0001" Then
+            wsSDU.Cells(sduRow, 1).Value = wsDest.Cells(i, 2).Value
+            wsSDU.Cells(sduRow, 2).Value = ChrW(1058) & ChrW(1054)
+            wsSDU.Cells(sduRow, 3).Value = wsDest.Cells(i, 8).Value
+            wsSDU.Cells(sduRow, 4).Value = wsDest.Cells(i, 3).Value
+            wsSDU.Cells(sduRow, 5).Value = ChrW(1052) & ChrW(1086) & ChrW(1089) & ChrW(1082) & ChrW(1074) & ChrW(1072)
+            wsSDU.Cells(sduRow, 6).Value = ""
+            
+            ' Цены из листа Результат (J и K)
+            wsSDU.Cells(sduRow, 7).Value = wsDest.Cells(i, 10).Value ' Розничная (J)
+            wsSDU.Cells(sduRow, 8).Value = wsDest.Cells(i, 11).Value ' Со скидкой (K)
+            
+            wsSDU.Cells(sduRow, 9).Value = Date
+            sduRow = sduRow + 1
+        End If
+    Next i
+    
+    wsSDU.Columns("A:I").AutoFit
+    wsSDU.Rows.AutoFit
+    wsSDU.Cells(1, 1).EntireRow.Font.Bold = True
+
+    ' =========================================================
+    ' ---- 5. ВКЛАДКА СДУ_переодиность_ТО ----
+    ' =========================================================
+    On Error Resume Next
+    Application.DisplayAlerts = False
+    ThisWorkbook.Sheets("СДУ_переодиность_ТО").Delete
+    Application.DisplayAlerts = True
+    On Error GoTo ErrorHandler
+    
+    Set wsSDUPeriod = ThisWorkbook.Sheets.Add(After:=wsSDU)
+    wsSDUPeriod.Name = "СДУ_переодиность_ТО"
+    
+    wsSDUPeriod.Cells(1, 1).Value = ChrW(1048) & ChrW(1085) & ChrW(1090) & ChrW(1077) & ChrW(1075) & ChrW(1088) & ChrW(1072) & ChrW(1094) & ChrW(1080) & ChrW(1086) & ChrW(1085) & ChrW(1085) & ChrW(1099) & ChrW(1081) & " ID"
+    wsSDUPeriod.Cells(1, 2).Value = ChrW(1052) & ChrW(1077) & ChrW(1078) & ChrW(1089) & ChrW(1077) & ChrW(1088) & ChrW(1074) & ChrW(1080) & ChrW(1089) & ChrW(1085) & ChrW(1099) & ChrW(1081) & " " & ChrW(1087) & ChrW(1088) & ChrW(1086) & ChrW(1073) & ChrW(1077) & ChrW(1075)
+    wsSDUPeriod.Cells(1, 3).Value = ChrW(1055) & ChrW(1077) & ChrW(1088) & ChrW(1080) & ChrW(1086) & ChrW(1076) & ChrW(1080) & ChrW(1095) & ChrW(1085) & ChrW(1086) & ChrW(1089) & ChrW(1090) & ChrW(1100) & " " & ChrW(1058) & ChrW(1054)
+    wsSDUPeriod.Cells(1, 4).Value = ChrW(1044) & ChrW(1072) & ChrW(1090) & ChrW(1072) & " " & ChrW(1085) & ChrW(1072) & ChrW(1095) & ChrW(1072) & ChrW(1083) & ChrW(1072) & " " & ChrW(1076) & ChrW(1077) & ChrW(1081) & ChrW(1089) & ChrW(1090) & ChrW(1074) & ChrW(1080) & ChrW(1103)
+
+    sduPerRow = 2
+    Dim dictWritten As Object
+    Set dictWritten = CreateObject("Scripting.Dictionary")
+    
+    For i = 2 To lastRowMarks
+        If wsDest.Cells(i, 7).Value = "ТО_0001" Then
+            iidValue = wsDest.Cells(i, 2).Value
+            
+            If Not dictWritten.exists(iidValue) Then
+                dictWritten.Add iidValue, True
+                
+                wsSDUPeriod.Cells(sduPerRow, 1).Value = iidValue
+                
+                If dictPeriodO.exists(iidValue) Then
+                    wsSDUPeriod.Cells(sduPerRow, 2).Value = dictPeriodO(iidValue)
+                Else
+                    wsSDUPeriod.Cells(sduPerRow, 2).Value = ""
+                End If
+                
+                If dictPeriodP.exists(iidValue) Then
+                    wsSDUPeriod.Cells(sduPerRow, 3).Value = dictPeriodP(iidValue)
+                Else
+                    wsSDUPeriod.Cells(sduPerRow, 3).Value = ""
+                End If
+                
+                wsSDUPeriod.Cells(sduPerRow, 4).Value = Date
+                sduPerRow = sduPerRow + 1
+            End If
+        End If
+    Next i
+
+    wsSDUPeriod.Columns("A:D").AutoFit
+    wsSDUPeriod.Rows.AutoFit
+    wsSDUPeriod.Cells(1, 1).EntireRow.Font.Bold = True
+
+    ' =========================================================
+    ' ---- 6. ВКЛАДКА NAV_справочник_цен ----
+    ' =========================================================
+    On Error Resume Next
+    Application.DisplayAlerts = False
+    ThisWorkbook.Sheets("NAV_справочник_цен").Delete
+    Application.DisplayAlerts = True
+    On Error GoTo ErrorHandler
+    
+    Set wsNAV = ThisWorkbook.Sheets.Add(After:=wsSDUPeriod)
+    wsNAV.Name = "NAV_справочник_цен"
+    
+    wsNAV.Cells(1, 1).Value = ChrW(1052) & ChrW(1086) & ChrW(1076) & ChrW(1080) & ChrW(1092) & ChrW(1080) & ChrW(1082) & ChrW(1072) & ChrW(1094) & ChrW(1080) & ChrW(1103) & " ID"
+    wsNAV.Cells(1, 2).Value = ChrW(1053) & ChrW(1086) & ChrW(1084) & ChrW(1077) & ChrW(1088) & " " & ChrW(1091) & ChrW(1089) & ChrW(1083) & ChrW(1091) & ChrW(1075) & ChrW(1080)
+    wsNAV.Cells(1, 3).Value = ChrW(1053) & ChrW(1086) & ChrW(1084) & ChrW(1077) & ChrW(1088) & " " & ChrW(1087) & ChrW(1077) & ChrW(1088) & ChrW(1080) & ChrW(1086) & ChrW(1076) & ChrW(1072)
+    wsNAV.Cells(1, 4).Value = ChrW(1044) & ChrW(1072) & ChrW(1090) & ChrW(1072) & " " & ChrW(1076) & ChrW(1077) & ChrW(1081) & ChrW(1089) & ChrW(1090) & ChrW(1074) & ChrW(1080) & ChrW(1103)
+    wsNAV.Cells(1, 5).Value = ChrW(1057) & ChrW(1090) & ChrW(1086) & ChrW(1080) & ChrW(1084) & ChrW(1086) & ChrW(1089) & ChrW(1090) & ChrW(1100) & " " & ChrW(1054) & ChrW(1073) & ChrW(1089) & ChrW(1083) & ChrW(1091) & ChrW(1078) & ChrW(1080) & ChrW(1074) & ChrW(1072) & ChrW(1085) & ChrW(1080) & ChrW(1103) & "," & " " & ChrW(1088) & ChrW(1091) & ChrW(1073)
+    
+    navRow = 2
+    
+    For i = 2 To lastRowMarks
+        If wsDest.Cells(i, 1).Value <> "" Then
+            wsNAV.Cells(navRow, 1).Value = wsDest.Cells(i, 1).Value
+            wsNAV.Cells(navRow, 2).Value = wsDest.Cells(i, 7).Value
+            wsNAV.Cells(navRow, 3).Value = wsDest.Cells(i, 8).Value
+            wsNAV.Cells(navRow, 4).Value = Date
+            ' Берем стоимость из J (10) листа Результат
+            wsNAV.Cells(navRow, 5).Value = wsDest.Cells(i, 10).Value
+            navRow = navRow + 1
+        End If
+    Next i
+
+    wsNAV.Columns("A:E").AutoFit
+    wsNAV.Rows.AutoFit
+    wsNAV.Cells(1, 1).EntireRow.Font.Bold = True
+
+    ' =========================================================
+    ' ---- 7. ВКЛАДКА NAV_Справочник_переодичности_ТО ----
+    ' =========================================================
+    On Error Resume Next
+    Application.DisplayAlerts = False
+    ThisWorkbook.Sheets("NAV_Справочник_переодичности_ТО").Delete
+    Application.DisplayAlerts = True
+    On Error GoTo ErrorHandler
+    
+    Set wsNAVPeriod = ThisWorkbook.Sheets.Add(After:=wsNAV)
+    wsNAVPeriod.Name = "NAV_Справочник_переодичности_ТО"
+    
+    wsNAVPeriod.Cells(1, 1).Value = ChrW(1052) & ChrW(1086) & ChrW(1076) & ChrW(1080) & ChrW(1092) & ChrW(1080) & ChrW(1082) & ChrW(1072) & ChrW(1094) & ChrW(1080) & ChrW(1103) & " ID"
+    wsNAVPeriod.Cells(1, 2).Value = ChrW(1052) & ChrW(1077) & ChrW(1078) & ChrW(1089) & ChrW(1077) & ChrW(1088) & ChrW(1074) & ChrW(1080) & ChrW(1089) & ChrW(1085) & ChrW(1099) & ChrW(1081) & " " & ChrW(1087) & ChrW(1088) & ChrW(1086) & ChrW(1073) & ChrW(1077) & ChrW(1075)
+    wsNAVPeriod.Cells(1, 3).Value = ChrW(1053) & ChrW(1077) & ChrW(1086) & ChrW(1073) & ChrW(1093) & ChrW(
