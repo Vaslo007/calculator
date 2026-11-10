@@ -2,7 +2,7 @@ Sub GenerateServiceData()
     On Error GoTo ErrorHandler
     
     Dim wsMarks As Worksheet
-    Dim wsStatic As Worksheet ' Ссылка на статический "Результат"
+    Dim wsStatic As Worksheet
     Dim wsDest As Worksheet
     Dim wsSDU As Worksheet
     Dim wsSDUPeriod As Worksheet
@@ -15,7 +15,7 @@ Sub GenerateServiceData()
     Dim dictMarks As Object
     Dim dictPeriodO As Object
     Dim dictPeriodP As Object
-    Dim dictPrices As Object ' Словарь для хранения цен
+    Dim dictPrices As Object
     Dim iidValue As String
     Dim brand As String
     Dim model As String
@@ -27,6 +27,7 @@ Sub GenerateServiceData()
     Dim serviceIDWithSuffix As String
     Dim driveType As String
     Dim maxTO As Long
+    Dim suffixCount As Long ' НОВАЯ ПЕРЕМЕННАЯ: количество суффиксов
     Dim suffix As Long
     Dim modificationID As String
     Dim destSheetName As String
@@ -80,9 +81,7 @@ Sub GenerateServiceData()
     If Not wsStatic Is Nothing Then
         lastRowStatic = wsStatic.Cells(wsStatic.Rows.Count, 1).End(xlUp).Row
         For i = 2 To lastRowStatic
-            ' Формируем ключ: Модификация ID | Номер Услуги | Номер Периода
             priceKey = CStr(wsStatic.Cells(i, 1).Value) & "|" & CStr(wsStatic.Cells(i, 7).Value) & "|" & CStr(wsStatic.Cells(i, 8).Value)
-            ' Запоминаем стоимость (J) и Розничную (K)
             dictPrices(priceKey) = Array(wsStatic.Cells(i, 10).Value, wsStatic.Cells(i, 11).Value)
         Next i
     End If
@@ -136,7 +135,6 @@ Sub GenerateServiceData()
     
     ' ---- 2. УДАЛЯЕМ СТАРЫЕ ДИНАМИЧЕСКИЕ ЛИСТЫ И СОЗДАЁМ НОВЫЙ ----
     Application.DisplayAlerts = False
-    ' Ищем и удаляем только те листы, которые начинаются с "Результат_"
     For Each wsCheck In ThisWorkbook.Sheets
         If Left(wsCheck.Name, 10) = "Результат_" Then
             wsCheck.Delete
@@ -177,6 +175,13 @@ Sub GenerateServiceData()
         driveType = data(2)
         model = data(3)
         modificationID = data(4)
+        
+        ' --- НОВОЕ: Определяем количество суффиксов для марки ---
+        If brand = "Changan" Or brand = "VOYAH" Then
+            suffixCount = 11 ' Суффиксы от 0 до 10
+        Else
+            suffixCount = 6  ' Суффиксы от 0 до 5 (как было)
+        End If
         
         If ladaIskraServiceIDs.exists(serviceId) Then
             periodStart = 0: periodEnd = 13
@@ -247,10 +252,12 @@ Sub GenerateServiceData()
                     If k = 0 Then
                         suffix = 0
                     Else
-                        suffix = ((k - 1) Mod 6) + 1
+                        ' --- НОВОЕ: используем suffixCount вместо жесткой 6 ---
+                        suffix = ((k - 1) Mod suffixCount) + 1
                     End If
                 Else
-                    suffix = ((k - 1) Mod 6) + 1
+                    ' --- НОВОЕ: используем suffixCount вместо жесткой 6 ---
+                    suffix = ((k - 1) Mod suffixCount) + 1
                 End If
                 
                 serviceIDWithSuffix = serviceId & "_" & suffix
@@ -268,8 +275,8 @@ Sub GenerateServiceData()
                 ' --- ПОИСК ЦЕН В СТАТИЧЕСКОМ РЕЗУЛЬТАТЕ ---
                 priceKey = CStr(modificationID) & "|" & toNum & "|" & CStr(k)
                 If dictPrices.exists(priceKey) Then
-                    wsDest.Cells(destRow, 10).Value = dictPrices(priceKey)(0) ' Стоимость из J
-                    wsDest.Cells(destRow, 11).Value = dictPrices(priceKey)(1) ' Розничная из K
+                    wsDest.Cells(destRow, 10).Value = dictPrices(priceKey)(0)
+                    wsDest.Cells(destRow, 11).Value = dictPrices(priceKey)(1)
                 Else
                     wsDest.Cells(destRow, 10).Value = ""
                     wsDest.Cells(destRow, 11).Value = ""
