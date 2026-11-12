@@ -1,5 +1,3 @@
-
-
 Sub GenerateServiceData()
     On Error GoTo ErrorHandler
     
@@ -92,7 +90,7 @@ Sub GenerateServiceData()
         Next i
     End If
     
-    ' ---- 0.1. Читаем ПОСЛЕДНЮЮ ДИНАМИЧЕСКУЮ вкладку, чтобы сохранить ранее введенные цены ----
+    ' ---- 0.1. Читаем ПОСЛЕДНЮЮ ДИНАМИЧЕСКУЮ вкладку ----
     Set dictOldData = CreateObject("Scripting.Dictionary")
     latestTime = 0
     latestDestName = ""
@@ -131,7 +129,7 @@ Sub GenerateServiceData()
     On Error GoTo 0
     
     If wsMarks Is Nothing Then
-        MsgBox "Файл 'Актуальные марки.xlsm' не найден или лист отсутствует!", vbCritical
+        MsgBox ChrW(1060) & ChrW(1072) & ChrW(1081) & ChrW(1083) & " " & ChrW(1085) & ChrW(1077) & " " & ChrW(1085) & ChrW(1072) & ChrW(1081) & ChrW(1076) & ChrW(1077) & ChrW(1085) & "!", vbCritical
         Exit Sub
     End If
     
@@ -162,7 +160,7 @@ Sub GenerateServiceData()
     Next i
     
     If dictMarks.Count = 0 Then
-        MsgBox "Не найдено данных на исходном листе!", vbCritical
+        MsgBox ChrW(1053) & ChrW(1077) & ChrW(1090) & " " & ChrW(1076) & ChrW(1072) & ChrW(1085) & ChrW(1085) & ChrW(1099) & ChrW(1093) & "!", vbCritical
         Exit Sub
     End If
     
@@ -304,7 +302,6 @@ Sub GenerateServiceData()
                 wsDest.Cells(destRow, 8).Value = k
                 wsDest.Cells(destRow, 9).Value = Date
                 
-                ' --- УМНЫЙ ПОИСК ЦЕН (СНАЧАЛА В СТАРОЙ ДИНАМИКЕ, ПОТОМ В СТАТИКЕ) ---
                 priceKey = CStr(modificationID) & "|" & toNum & "|" & CStr(k)
                 
                 If dictOldData.exists(priceKey) And dictOldData(priceKey)(0) <> "" Then
@@ -554,5 +551,5 @@ Sub GenerateServiceData()
 ErrorHandler:
     Application.ScreenUpdating = True
     Application.DisplayAlerts = True
-    MsgBox "Ошибка: " & Err.Description, vbCritical
+    MsgBox "Error: " & Err.Description, vbCritical
 End Sub
