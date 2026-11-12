@@ -1,5 +1,6 @@
 Sub GenerateServiceData()
     On Error GoTo ErrorHandler
+    
     Dim wsMarks As Worksheet
     Dim wsStatic As Worksheet
     Dim wsOldDest As Worksheet
@@ -553,3 +554,6 @@ ErrorHandler:
     Application.DisplayAlerts = True
     MsgBox "Ошибка: " & Err.Description, vbCritical
 End Sub
+
+
+
