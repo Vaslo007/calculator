@@ -1,3 +1,5 @@
+
+
 Sub GenerateServiceData()
     On Error GoTo ErrorHandler
     
@@ -302,6 +304,7 @@ Sub GenerateServiceData()
                 wsDest.Cells(destRow, 8).Value = k
                 wsDest.Cells(destRow, 9).Value = Date
                 
+                ' --- УМНЫЙ ПОИСК ЦЕН (СНАЧАЛА В СТАРОЙ ДИНАМИКЕ, ПОТОМ В СТАТИКЕ) ---
                 priceKey = CStr(modificationID) & "|" & toNum & "|" & CStr(k)
                 
                 If dictOldData.exists(priceKey) And dictOldData(priceKey)(0) <> "" Then
