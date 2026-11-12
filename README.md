@@ -3,6 +3,7 @@ Sub GenerateServiceData()
     
     Dim wsMarks As Worksheet
     Dim wsStatic As Worksheet
+    Dim wsOldDest As Worksheet
     Dim wsDest As Worksheet
     Dim wsSDU As Worksheet
     Dim wsSDUPeriod As Worksheet
@@ -10,12 +11,14 @@ Sub GenerateServiceData()
     Dim wsNAVPeriod As Worksheet
     Dim wsCheck As Worksheet
     Dim lastRowMarks As Long
+    Dim lastRowOld As Long
     Dim lastRowStatic As Long
     Dim i As Long, j As Long, k As Long
     Dim dictMarks As Object
     Dim dictPeriodO As Object
     Dim dictPeriodP As Object
     Dim dictPrices As Object
+    Dim dictOldData As Object
     Dim iidValue As String
     Dim brand As String
     Dim model As String
@@ -31,6 +34,9 @@ Sub GenerateServiceData()
     Dim modificationID As String
     Dim destSheetName As String
     Dim priceKey As String
+    Dim latestDestName As String
+    Dim latestTime As Date
+    Dim tTime As Date
     
     ' ---- Словарь: марка -> количество периодов ----
     Dim periodDict As Object
@@ -48,7 +54,7 @@ Sub GenerateServiceData()
     periodDict("OMODA") = 21
     periodDict("TENET") = 21
     periodDict("Changan") = 21
-    periodDict("VOYAH") = 21 ' Изменено на 21 (от 0 до 20)
+    periodDict("VOYAH") = 21
     
     ' ---- Модели LADA с периодом с 0 ----
     Dim nivaModels As Object
@@ -70,18 +76,44 @@ Sub GenerateServiceData()
     ladaVestaServiceIDs("LADA_Vesta_УНИВЕРСАЛ_1774_122 ЛС_ПЕРЕДНИЙ_MT") = True
     ladaVestaServiceIDs("LADA_Vesta_СЕДАН_1774_122 ЛС_ПЕРЕДНИЙ_MT") = True
     
-    ' ---- 0. Читаем СТАТИЧЕСКИЙ "Результат" для сбора цен ----
+    ' ---- 0. Читаем СТАТИЧЕСКИЙ "Результат" для сбора цен (эталон) ----
     On Error Resume Next
     Set wsStatic = ThisWorkbook.Sheets("Результат")
     On Error GoTo 0
     
     Set dictPrices = CreateObject("Scripting.Dictionary")
-    
     If Not wsStatic Is Nothing Then
         lastRowStatic = wsStatic.Cells(wsStatic.Rows.Count, 1).End(xlUp).Row
         For i = 2 To lastRowStatic
             priceKey = CStr(wsStatic.Cells(i, 1).Value) & "|" & CStr(wsStatic.Cells(i, 7).Value) & "|" & CStr(wsStatic.Cells(i, 8).Value)
             dictPrices(priceKey) = Array(wsStatic.Cells(i, 10).Value, wsStatic.Cells(i, 11).Value)
+        Next i
+    End If
+    
+    ' ---- 0.1. Читаем ПОСЛЕДНЮЮ ДИНАМИЧЕСКУЮ вкладку, чтобы сохранить ранее введенные цены ----
+    Set dictOldData = CreateObject("Scripting.Dictionary")
+    latestTime = 0
+    latestDestName = ""
+    
+    For Each wsCheck In ThisWorkbook.Sheets
+        If Left(wsCheck.Name, 10) = "Результат_" Then
+            On Error Resume Next
+            tTime = CDate(Mid(wsCheck.Name, 11, 2) & "." & Mid(wsCheck.Name, 13, 2) & "." & Mid(wsCheck.Name, 15, 4))
+            On Error GoTo 0
+            
+            If tTime > latestTime Then
+                latestTime = tTime
+                latestDestName = wsCheck.Name
+            End If
+        End If
+    Next wsCheck
+    
+    If latestDestName <> "" Then
+        Set wsOldDest = ThisWorkbook.Sheets(latestDestName)
+        lastRowOld = wsOldDest.Cells(wsOldDest.Rows.Count, 1).End(xlUp).Row
+        For i = 2 To lastRowOld
+            priceKey = CStr(wsOldDest.Cells(i, 1).Value) & "|" & CStr(wsOldDest.Cells(i, 7).Value) & "|" & CStr(wsOldDest.Cells(i, 8).Value)
+            dictOldData(priceKey) = Array(wsOldDest.Cells(i, 10).Value, wsOldDest.Cells(i, 11).Value)
         Next i
     End If
     
@@ -213,8 +245,7 @@ Sub GenerateServiceData()
                 periodStart = 1: periodEnd = 13
             End If
         ElseIf brand = "VOYAH" Then
-            ' --- ИСПРАВЛЕНО: теперь начинаем с 0 ---
-            periodStart = 0: periodEnd = 20 
+            periodStart = 0: periodEnd = 20
         Else
             Select Case model
                 Case "4x4", "Niva Legend", "Niva Sport"
@@ -241,7 +272,6 @@ Sub GenerateServiceData()
             toNum = "ТО_" & Format(j, "0000")
             
             For k = periodStart To periodEnd
-                ' --- Логика суффиксов ---
                 If periodStart = 0 Then
                     If k = 0 Then
                         suffix = 0
@@ -272,8 +302,13 @@ Sub GenerateServiceData()
                 wsDest.Cells(destRow, 8).Value = k
                 wsDest.Cells(destRow, 9).Value = Date
                 
+                ' --- УМНЫЙ ПОИСК ЦЕН (СНАЧАЛА В СТАРОЙ ДИНАМИКЕ, ПОТОМ В СТАТИКЕ) ---
                 priceKey = CStr(modificationID) & "|" & toNum & "|" & CStr(k)
-                If dictPrices.exists(priceKey) Then
+                
+                If dictOldData.exists(priceKey) And dictOldData(priceKey)(0) <> "" Then
+                    wsDest.Cells(destRow, 10).Value = dictOldData(priceKey)(0)
+                    wsDest.Cells(destRow, 11).Value = dictOldData(priceKey)(1)
+                ElseIf dictPrices.exists(priceKey) Then
                     wsDest.Cells(destRow, 10).Value = dictPrices(priceKey)(0)
                     wsDest.Cells(destRow, 11).Value = dictPrices(priceKey)(1)
                 Else
@@ -323,10 +358,8 @@ Sub GenerateServiceData()
             wsSDU.Cells(sduRow, 4).Value = wsDest.Cells(i, 3).Value
             wsSDU.Cells(sduRow, 5).Value = ChrW(1052) & ChrW(1086) & ChrW(1089) & ChrW(1082) & ChrW(1074) & ChrW(1072)
             wsSDU.Cells(sduRow, 6).Value = ""
-            
             wsSDU.Cells(sduRow, 7).Value = wsDest.Cells(i, 10).Value
             wsSDU.Cells(sduRow, 8).Value = wsDest.Cells(i, 11).Value
-            
             wsSDU.Cells(sduRow, 9).Value = Date
             sduRow = sduRow + 1
         End If
