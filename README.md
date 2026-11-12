@@ -1,3 +1,5 @@
+нОВЫЙ КОД
+
 Sub GenerateServiceData()
     On Error GoTo ErrorHandler
     
@@ -554,6 +556,3 @@ ErrorHandler:
     Application.DisplayAlerts = True
     MsgBox "Ошибка: " & Err.Description, vbCritical
 End Sub
-
-
-
