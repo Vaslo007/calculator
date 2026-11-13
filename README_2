@@ -1,4 +1,4 @@
-Sub GenerateServiceData()
+    Sub GenerateServiceData()
     On Error GoTo ErrorHandler
     
     Dim wsMarks As Worksheet
