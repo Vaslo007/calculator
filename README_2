@@ -1,4 +1,4 @@
-    Sub GenerateServiceData()
+Sub GenerateServiceData()
     On Error GoTo ErrorHandler
     
     Dim wsMarks As Worksheet
@@ -85,7 +85,6 @@
     If Not wsStatic Is Nothing Then
         lastRowStatic = wsStatic.Cells(wsStatic.Rows.Count, 1).End(xlUp).Row
         For i = 2 To lastRowStatic
-            ' ИЗМЕНЕНО: Ключ теперь только Модификация (A) и Период (H)
             priceKey = CStr(wsStatic.Cells(i, 1).Value) & "|" & CStr(wsStatic.Cells(i, 8).Value)
             dictPrices(priceKey) = Array(wsStatic.Cells(i, 10).Value, wsStatic.Cells(i, 11).Value)
         Next i
@@ -113,7 +112,6 @@
         Set wsOldDest = ThisWorkbook.Sheets(latestDestName)
         lastRowOld = wsOldDest.Cells(wsOldDest.Rows.Count, 1).End(xlUp).Row
         For i = 2 To lastRowOld
-            ' ИЗМЕНЕНО: Ключ теперь только Модификация (A) и Период (H)
             priceKey = CStr(wsOldDest.Cells(i, 1).Value) & "|" & CStr(wsOldDest.Cells(i, 8).Value)
             dictOldData(priceKey) = Array(wsOldDest.Cells(i, 10).Value, wsOldDest.Cells(i, 11).Value)
         Next i
@@ -304,51 +302,38 @@
                 wsDest.Cells(destRow, 8).Value = k
                 wsDest.Cells(destRow, 9).Value = Date
                 
-                ' --- БЕЗОПАСНЫЙ ПОИСК ЦЕН (ПО ID И ПЕРИОДУ) ---
-                Dim valOldCost As String, valOldRetail As String
-                Dim valStatCost As String, valStatRetail As String
-                Dim tempCost As Variant, tempRetail As Variant
+                ' --- БЕЗОПАСНЫЙ ПОИСК ЦЕН (С СОХРАНЕНИЕМ ЧИСЛОВОГО ФОРМАТА) ---
+                Dim valOldCost As Variant, valOldRetail As Variant
+                Dim valStatCost As Variant, valStatRetail As Variant
                 
-                ' Ключ теперь состоит только из Модификации и Периода
                 priceKey = CStr(modificationID) & "|" & CStr(k)
                 
                 valOldCost = ""
                 valOldRetail = ""
                 
-                ' 1. Берем из старой динамики, если есть
                 If dictOldData.exists(priceKey) Then
-                    tempCost = dictOldData(priceKey)(0)
-                    tempRetail = dictOldData(priceKey)(1)
-                    
-                    If Not IsError(tempCost) Then
-                        If IsNumeric(tempCost) And tempCost <> 0 Then valOldCost = CStr(tempCost)
+                    If Not IsError(dictOldData(priceKey)(0)) Then
+                        If IsNumeric(dictOldData(priceKey)(0)) Then valOldCost = dictOldData(priceKey)(0)
                     End If
-                    
-                    If Not IsError(tempRetail) Then
-                        If IsNumeric(tempRetail) And tempRetail <> 0 Then valOldRetail = CStr(tempRetail)
+                    If Not IsError(dictOldData(priceKey)(1)) Then
+                        If IsNumeric(dictOldData(priceKey)(1)) Then valOldRetail = dictOldData(priceKey)(1)
                     End If
                 End If
                 
                 valStatCost = ""
                 valStatRetail = ""
                 
-                ' 2. Если старых нет, берем из статического
                 If valOldCost = "" Then
                     If dictPrices.exists(priceKey) Then
-                        tempCost = dictPrices(priceKey)(0)
-                        tempRetail = dictPrices(priceKey)(1)
-                        
-                        If Not IsError(tempCost) Then
-                            If IsNumeric(tempCost) Then valStatCost = CStr(tempCost)
+                        If Not IsError(dictPrices(priceKey)(0)) Then
+                            If IsNumeric(dictPrices(priceKey)(0)) Then valStatCost = dictPrices(priceKey)(0)
                         End If
-                        
-                        If Not IsError(tempRetail) Then
-                            If IsNumeric(tempRetail) Then valStatRetail = CStr(tempRetail)
+                        If Not IsError(dictPrices(priceKey)(1)) Then
+                            If IsNumeric(dictPrices(priceKey)(1)) Then valStatRetail = dictPrices(priceKey)(1)
                         End If
                     End If
                 End If
                 
-                ' 3. Записываем
                 If valOldCost <> "" Then
                     wsDest.Cells(destRow, 10).Value = valOldCost
                     wsDest.Cells(destRow, 11).Value = valOldRetail
@@ -364,6 +349,9 @@
             Next k
         Next j
     Next i
+    
+    ' --- ЗАДАЕМ ЧИСЛОВОЙ ФОРМАТ ДЛЯ СТОЛБЦОВ J И K ---
+    wsDest.Columns("J:K").NumberFormat = "0"
     
     wsDest.Columns("A:K").AutoFit
     wsDest.Rows.AutoFit
@@ -408,6 +396,9 @@
             sduRow = sduRow + 1
         End If
     Next i
+    
+    ' Формат чисел для СДУ
+    wsSDU.Columns("G:H").NumberFormat = "0"
     
     wsSDU.Columns("A:I").AutoFit
     wsSDU.Rows.AutoFit
@@ -496,6 +487,9 @@
         End If
     Next i
 
+    ' Формат чисел для NAV
+    wsNAV.Columns("E:E").NumberFormat = "0"
+    
     wsNAV.Columns("A:E").AutoFit
     wsNAV.Rows.AutoFit
     wsNAV.Cells(1, 1).EntireRow.Font.Bold = True
