@@ -85,7 +85,8 @@
     If Not wsStatic Is Nothing Then
         lastRowStatic = wsStatic.Cells(wsStatic.Rows.Count, 1).End(xlUp).Row
         For i = 2 To lastRowStatic
-            priceKey = CStr(wsStatic.Cells(i, 1).Value) & "|" & CStr(wsStatic.Cells(i, 7).Value) & "|" & CStr(wsStatic.Cells(i, 8).Value)
+            ' ИЗМЕНЕНО: Ключ теперь только Модификация (A) и Период (H)
+            priceKey = CStr(wsStatic.Cells(i, 1).Value) & "|" & CStr(wsStatic.Cells(i, 8).Value)
             dictPrices(priceKey) = Array(wsStatic.Cells(i, 10).Value, wsStatic.Cells(i, 11).Value)
         Next i
     End If
@@ -112,7 +113,8 @@
         Set wsOldDest = ThisWorkbook.Sheets(latestDestName)
         lastRowOld = wsOldDest.Cells(wsOldDest.Rows.Count, 1).End(xlUp).Row
         For i = 2 To lastRowOld
-            priceKey = CStr(wsOldDest.Cells(i, 1).Value) & "|" & CStr(wsOldDest.Cells(i, 7).Value) & "|" & CStr(wsOldDest.Cells(i, 8).Value)
+            ' ИЗМЕНЕНО: Ключ теперь только Модификация (A) и Период (H)
+            priceKey = CStr(wsOldDest.Cells(i, 1).Value) & "|" & CStr(wsOldDest.Cells(i, 8).Value)
             dictOldData(priceKey) = Array(wsOldDest.Cells(i, 10).Value, wsOldDest.Cells(i, 11).Value)
         Next i
     End If
@@ -302,10 +304,13 @@
                 wsDest.Cells(destRow, 8).Value = k
                 wsDest.Cells(destRow, 9).Value = Date
                 
-                ' --- БЕЗОПАСНЫЙ ПОИСК ЦЕН ---
+                ' --- БЕЗОПАСНЫЙ ПОИСК ЦЕН (ПО ID И ПЕРИОДУ) ---
                 Dim valOldCost As String, valOldRetail As String
                 Dim valStatCost As String, valStatRetail As String
                 Dim tempCost As Variant, tempRetail As Variant
+                
+                ' Ключ теперь состоит только из Модификации и Периода
+                priceKey = CStr(modificationID) & "|" & CStr(k)
                 
                 valOldCost = ""
                 valOldRetail = ""
